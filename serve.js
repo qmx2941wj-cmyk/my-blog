@@ -12,11 +12,19 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split("?")[0]);
-  if (urlPath === "/") urlPath = "/index.html";
+  let pathname;
+  try {
+    pathname = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  } catch (err) {
+    res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Bad request");
+    return;
+  }
+  if (pathname === "/") pathname = "/index.html";
 
-  const filePath = path.join(DIST_DIR, urlPath);
-  if (!filePath.startsWith(DIST_DIR)) {
+  const filePath = path.resolve(DIST_DIR, "." + pathname);
+  const relative = path.relative(DIST_DIR, filePath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;

@@ -22,6 +22,12 @@
     return prefersDark ? "dark" : "light";
   }
 
+  function syncButtonState(button) {
+    var isDark = currentTheme() === "dark";
+    button.setAttribute("aria-pressed", String(isDark));
+    button.setAttribute("aria-label", isDark ? "라이트 모드로 전환" : "다크 모드로 전환");
+  }
+
   function toggleTheme() {
     var next = currentTheme() === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
@@ -30,6 +36,8 @@
     } catch (e) {
       // 저장 실패 시 이번 세션에서만 테마 유지
     }
+    var button = document.querySelector("[data-theme-toggle]");
+    if (button) syncButtonState(button);
   }
 
   applyStoredTheme();
@@ -37,6 +45,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     var button = document.querySelector("[data-theme-toggle]");
     if (button) {
+      syncButtonState(button);
       button.addEventListener("click", toggleTheme);
     }
   });

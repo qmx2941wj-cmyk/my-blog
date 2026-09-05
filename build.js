@@ -1,12 +1,13 @@
 const fs = require("fs");
 const path = require("path");
 const { parseFrontmatter } = require("./lib/frontmatter");
-const { markdownToHtml } = require("./lib/markdown");
+const { markdownToHtml, escapeHtml } = require("./lib/markdown");
 
 const ROOT = __dirname;
 const POSTS_DIR = path.join(ROOT, "posts");
 const STATIC_DIR = path.join(ROOT, "static");
 const DIST_DIR = path.join(ROOT, "dist");
+const APPS_DIR = path.join(ROOT, "apps");
 const SITE_TITLE = "My Blog";
 
 function slugify(filename) {
@@ -19,7 +20,7 @@ function slugify(filename) {
 
 function formatDate(dateStr) {
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr || "";
+  if (isNaN(d.getTime())) return escapeHtml(dateStr || "");
   return d.toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
@@ -30,6 +31,8 @@ function formatDate(dateStr) {
 function loadPosts() {
   if (!fs.existsSync(POSTS_DIR)) return [];
 
+  const seenSlugs = new Map();
+
   return fs
     .readdirSync(POSTS_DIR)
     .filter((file) => file.endsWith(".md"))
@@ -37,9 +40,18 @@ function loadPosts() {
       const raw = fs.readFileSync(path.join(POSTS_DIR, file), "utf8");
       const { data, body } = parseFrontmatter(raw);
       const slug = slugify(file);
+
+      if (!slug) {
+        throw new Error(`빌드 실패: "${file}"에서 만들어진 slug가 비어 있습니다. 파일명에 영문/숫자를 포함해주세요.`);
+      }
+      if (seenSlugs.has(slug)) {
+        throw new Error(`빌드 실패: "${file}"와 "${seenSlugs.get(slug)}"의 slug가 "${slug}"로 충돌합니다.`);
+      }
+      seenSlugs.set(slug, file);
+
       return {
         slug,
-        title: data.title || slug,
+        title: escapeHtml(data.title || slug),
         date: data.date || "",
         contentHtml: markdownToHtml(body),
       };
@@ -61,7 +73,7 @@ function pageShell({ title, bodyHtml, assetPrefix }) {
 <header class="site-header">
   <div class="site-header__inner">
     <a class="site-title" href="${assetPrefix}index.html">${SITE_TITLE}</a>
-    <button class="theme-toggle" type="button" data-theme-toggle aria-label="다크 모드 전환">🌓</button>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="다크 모드로 전환">🌓</button>
   </div>
 </header>
 <main>
@@ -115,6 +127,24 @@ function copyStaticAssets() {
   }
 }
 
+function copyDirRecursive(srcDir, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+function copyApps() {
+  if (!fs.existsSync(APPS_DIR)) return;
+  copyDirRecursive(APPS_DIR, path.join(DIST_DIR, "apps"));
+}
+
 function build() {
   fs.rmSync(DIST_DIR, { recursive: true, force: true });
   fs.mkdirSync(path.join(DIST_DIR, "posts"), { recursive: true });
@@ -130,6 +160,7 @@ function build() {
   }
 
   copyStaticAssets();
+  copyApps();
 
   console.log(`Built ${posts.length} post(s) into ${path.relative(ROOT, DIST_DIR)}/`);
 }
