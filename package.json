@@ -1,0 +1,10 @@
+{
+  "name": "my-blog",
+  "private": true,
+  "version": "1.0.0",
+  "description": "마크다운을 정적 HTML 블로그로 변환하는 빌드 스크립트",
+  "scripts": {
+    "build": "node build.js",
+    "serve": "node serve.js"
+  }
+}
